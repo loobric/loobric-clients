@@ -32,9 +32,11 @@ Three format investments cover most of the reachable surface:
 2. **SQLite tool databases.** The same `sqlite3` read pattern handles
    Mastercam `.tooldb`, Vectric `.vtdb`, and CAMWorks `.cwdb` — three heavy
    hitters sharing an open, inspectable container.
-3. **MTConnect `CuttingTool` assets.** The only fully open, documented,
-   *writable* standard, and the only one carrying live tool-life /
-   pot-location / inventory — data ISO 13399 and GTC structurally cannot hold.
+3. **MTConnect `CuttingTool` assets.** The open cross-vendor route for the live
+   tool-life / pot-location / inventory axis that ISO 13399 and GTC structurally
+   cannot hold. **Read-only to the control** (writing an asset populates the
+   *agent's* buffer for read-back, never the machine) — so it's an *observe*
+   route, not a write-back one. See [Protocol leverage](#protocol-leverage).
 
 ## How to read the ratings
 
@@ -102,7 +104,7 @@ deepen that, not to chase gated vendor APIs.
 | Candidate | Cat | Docs | Role | Desire | Route |
 |---|---|---|---|---|---|
 | **MachiningCloud** | Catalog | Partial (free GTC/ISO 13399 export) | Data source | **HIGH** | User-exported GTC import — works today, best demo target |
-| **MTConnect** Part 4.1 | Standard | Good, open, writable assets | Source + publish | **HIGH** | `CuttingTool` asset client; fills the live tool-life gap |
+| **MTConnect** Part 4.1 | Standard | Good, open; **read-only to control** | Live-state ingest | **HIGH** | `CuttingTool` asset client; cross-vendor *observe* of tool-life/location (not write-back) |
 | **ToolsUnited** (CIMSOURCE) | Catalog | Partial (DIN 4000/13399/GTC) | Data source | High (paywalled) | User GTC export; ToolsUnitedDirect = partnership |
 | **HSMAdvisor / FSWizard** | F&S+mgmt | Partial (Fusion JSON + `.hsmlib`) | Bidirectional client | High | File round-trip; living, approachable dev |
 | **Sandvik CoroPlus** | Catalog/lib | Partial (ISO 13399/GTC; API partner-gated) | Data source | High | Standard import; partnership for the live API |
@@ -221,6 +223,71 @@ is ~zero. Both axes gate value.
 
 ---
 
+## Protocol leverage
+
+A third axis, alongside extension-surface ceiling and data-format openness:
+**what standards a platform already speaks.** A standard supported across N
+platforms can be a force multiplier — one adapter, many platforms — *but only
+when the standard covers the data **and the direction** you need.* The decisive
+finding (researched 2026-06-30):
+
+> **There is no released, standardized, cross-vendor route to *write* tool data
+> into a CNC control.** Every genuinely cross-vendor standard (OPC UA 40501-1
+> "umati", MTConnect) is **read-only** for tool data. Every route that can write
+> is either single-vendor (FOCAS, THINC, Heidenhain RemoTools, Siemens' licensed
+> OPC UA) or a file-exchange format. So "platform supports MTConnect/OPC UA"
+> buys the **observe half** across many platforms — never the write-back.
+
+### Split each integration into three data-axes, each with its own route
+
+Don't model an integration as one monolithic per-vendor client. Mux three routes:
+
+| Data axis | Best route | Direction | Multiplier? |
+|---|---|---|---|
+| **Catalog / nominal geometry / assemblies** | GTC / ISO 13399 / STEP-P21 | read+write (file) | **Yes — Smooth already parses it** |
+| **Live state** (tool life, pot/magazine location, measured geometry) | MTConnect + OPC UA 40501-1 | **read-only** | **Yes, but observe-only** |
+| **Write-back** (offsets, tool table) | per-vendor SDK (FOCAS / Siemens-UA / RemoTools / THINC) | read+write | **No — single-vendor** |
+
+A Fanuc integration is therefore *GTC-catalog + MTConnect/OPC-UA-observe +
+FOCAS-write* — composed, not monolithic. Provenance falls out of the route:
+GTC → `asserted:catalog-import`; MTConnect/OPC-UA → `observed:…@machine`;
+SDK write → `asserted`/`observed` per node.
+
+### The standards landscape for tool data
+
+| Standard | Tool-data R/W | Platforms exposing tool data via it | Multiplier? |
+|---|---|---|---|
+| **GTC / ISO 13399 / STEP-P21** | **read+write (file)** | Fusion, Mastercam, NX (read); **MachiningCloud, TDM** (read+write hubs); Sandvik CoroPlus (produces); all vendor catalogs | **YES — the real one; already parsed** |
+| **OPC UA 40501-1 (umati)** | **read-only** | Siemens, Heidenhain, Okuma, Mazak, most umati controls (monitoring) | Cross-vendor but observe-only |
+| **MTConnect (+ MQTT)** | **read-only** (asset PUT writes *agent*, not control) | Okuma emits `CuttingTool` assets; most others status-only | Cross-vendor but observe-only |
+| **DIN 4000** | read+write (file) | Zoller, TDM, WinTool, Haimer (German TMS tier; CAM ignores it) | Partial (TMS tier) |
+| **Siemens Sinumerik OPC UA tool mgmt** | **read+write** | Siemens 840D sl / 828D / ONE | No — single-vendor, licensed |
+| **FANUC FOCAS** | **read+write** (`cnc_wrtofs`, tool life) | Fanuc (largest base) | No — single-vendor |
+| **Okuma THINC API** | **read+write** | Okuma OSP-P | No — single-vendor |
+| **Heidenhain RemoTools / OPC UA FileSystem** | **read+write** (`setToolTableRow` / whole-file) | Heidenhain TNC | No — single-vendor, licensed |
+| **STEP-NC (ISO 14649)** | read+write (file) | ~none in production (demos only) | Cross-vendor in theory, dead in practice |
+| **QIF** | n/a (no cutting-tool data) | — | No |
+
+### What this changes about priorities
+
+- **Deepening GTC/ISO 13399 ingest is the highest-leverage standards play** — it
+  is the *only* genuine cross-vendor multiplier, and Smooth already parses it.
+  **MachiningCloud and TDM are the two bidirectional hubs** worth targeting; a
+  subscribed user there exports GTC for the whole catalog tier.
+- **A single cross-vendor read-ingest adapter** (MTConnect + OPC UA 40501-1)
+  covers *observability* — live tool-life / location — across the whole control
+  fleet cheaply. That's the control-side multiplier, and it's observe-only.
+  (This is why the MTConnect client is a Wave 1 gap-finder, #8.)
+- **Write-back to controls is irreducibly per-vendor.** Scope it as a small set
+  of deliberate single-vendor SDK bets ranked by installed base: **FOCAS
+  (Fanuc) → Siemens OPC UA → Heidenhain RemoTools → Okuma THINC.** Don't wait
+  for a standard that isn't coming.
+- **Don't double-build the observe half.** Where a control speaks MTConnect/OPC
+  UA, get live state from the standard; spend bespoke effort only on its write
+  path. (e.g. Heidenhain `TOOL.T` file write + MTConnect observe, not two reads.)
+
+---
+
 ## Prioritization
 
 ### Sequence by schema-shape risk first, reach second
@@ -318,8 +385,8 @@ against a still-moving schema.
    sister tools), plaintext, free transfer tool. Build first.
 2. **One turning CAM — Mastercam** (open SQLite `.tooldb`, rich, recruitable) —
    validates turning geometry + assembly behavior.
-3. **MTConnect asset client** — validates live tool-life/location and the
-   writable-asset path.
+3. **MTConnect asset client** — validates live tool-life/location ingest
+   (observe-only; see [Protocol leverage](#protocol-leverage)).
 
 **Wave 2 — reach, against a now-stable contract:**
 4. **PathPilot** (reuse LinuxCNC client) — momentum win, can run in parallel
