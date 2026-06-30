@@ -117,6 +117,110 @@ deepen that, not to chase gated vendor APIs.
 
 ---
 
+## Integration depth
+
+Two systems can both "have a Smooth client" and deliver completely different
+value. LinuxCNC taught this: the cron CLI (`smooth_linuxcnc.py sync`) keeps the
+tool table consistent, but it is *blind* — it cannot tell the operator "mount
+T5 now." Surfacing that required a second, deeper piece: the GladeVCP panel
+embedded in the LinuxCNC UI. **Data-format openness and integration depth are
+independent axes** — Vectric has wide-open SQLite yet cannot host an ambient
+panel; Carbide Create's data is reachable only by editing files with the app
+closed.
+
+Classify each integration two ways: the **ceiling** (deepest rung the host's
+extension surface *permits*) and the **status** (deepest rung we have *built*).
+The gap between them is the real backlog.
+
+### The depth ladder
+
+| Rung | Name | What it delivers | LinuxCNC analog |
+|---|---|---|---|
+| **D0** | None | No programmatic surface (closed cloud / opaque binary, no file) | — |
+| **D1** | Manual exchange | User hand-exports/imports a file; one-shot | — |
+| **D2** | Unattended sync | Headless/CLI/cron syncs data both ways; blind to prompts | `smooth_linuxcnc.py sync` |
+| **D3** | In-app, user-invoked | Code runs inside the host; user clicks to sync; inline feedback | FreeCAD "Smooth" button |
+| **D4** | Ambient panel | Persistent/dockable UI that **surfaces server-driven state** — mount requests, conflicts, requested tools, bind status | **GladeVCP panel** |
+| **D5** | Event-driven/live | Reacts to host runtime events (tool change, touch-off) and/or server push; closes the loop automatically | — |
+
+The "mount request" need is specifically **D4+**: a persistent UI that polls or
+subscribes and alerts the operator *in context*. D2 sync alone can never do it.
+
+### Two ceilings, not one
+
+A host can have a high *UI/event* ceiling but a low *data-write* ceiling — rate
+both. **Fusion is the canonical case:** UI ceiling **D5** (documented dockable
+HTML palettes + a resident add-in subscribing to runtime events + a
+worker-thread→`fireCustomEvent` bridge for async polling — *exactly* the
+mount-request panel pattern), but its CAM tool-*write* API is effectively
+read-only, so tool writes go through `.json`/`.tools` files. The right Fusion
+design is a D4/D5 palette that **surfaces** server state while **writing** tools
+by file.
+
+A second cross-cutting finding: **a high UI ceiling is worthless without tool
+data to sync.** CNCjs and UGS can both host a deep out-of-tree panel (D5), but
+neither has a tool table — so their depth ceiling is high and their data value
+is ~zero. Both axes gate value.
+
+### CAM hosts — ceiling & status
+
+| Host | UI/event ceiling | Async mount-request panel? | Data-write surface | Status today |
+|---|---|---|---|---|
+| **FreeCAD** | **D5** (`addDockWidget` + Document/Selection observers + `QTimer`) | Yes | Full (own model) | **D3 shipped** (button + prefs) → gap is D4 panel |
+| **Fusion** | **D5** (HTML palette + resident add-in events + worker→`fireCustomEvent`) | **Yes — documented for this exact use** | Low (CAM tool API read-only → file) | none |
+| **SolidWorks CAM / CAMWorks** | **D5** (`ITaskpaneView` dockable + SldWorks events + TechDB tool API) | Yes — cleanest desktop fit | TechDB via COM | none |
+| **NX CAM** | **D5** (docked Block dialog + UF/NXOpen callbacks) | Yes | NX Open | none |
+| **ESPRIT** | **D5** (COM/.NET add-in window + event sinks) | Yes (verify TNG specifics) | KB API | none |
+| **Kiri:Moto** | **D5 (web)** (web panel / Onshape tab + engine listeners) | Yes (you host/embed) | JSON | none |
+| **PowerMill** | **D4** (plugin dockable pane, poll-only) | Yes by polling | COM / `.mdb` | none |
+| **Mastercam** | **D3** (ribbon button + modal/floating form) | No (clean) | SQLite + NET-Hook | none |
+| **Vectric** | **D3** (Gadgets, Lua, modal only) | No | SQLite (file) | none |
+| **BobCAD** | **D3** (Lua, user-invoked) | No (public; deeper is partner-gated) | XML | none |
+| **Carbide Create** | **D1** (no plugin runtime) | No | CSV (file, app closed) | none |
+| **Estlcam** | **D1** | No | CSV | none |
+| **CAMotics** | **D2** (headless TPL only) | No (fork to add UI) | JSON | none |
+
+### CNC controls — ceiling & status
+
+| Control | UI/event ceiling (on-control) | Async mount-request panel ON control? | Data exchange | Status today |
+|---|---|---|---|---|
+| **LinuxCNC** | **D5** (GladeVCP + HAL) | **Yes — the reference** | `.tbl` | **D2 + D4 shipped** |
+| **Tormach PathPilot** | **D5** (it *is* LinuxCNC) | Yes — but unsupported, update-fragile (`ui_hooks` survives) | `.tbl` | none → **can inherit both LinuxCNC pieces** |
+| **Okuma OSP (THINC)** | **D5** (public SDK + App Store + Startup Service) | **Yes — best industrial panel target** | THINC API r/w | none |
+| **Centroid Acorn** | **D5/D4** (VCP + PLC async messages; sidecar for server) | Yes — vendor-sanctioned | `.tl`/`.ol` | none |
+| **Mach4** | **D5** (screen tab + PLC script + signal scripts) | Yes — fully open | Lua API | none |
+| **Mach3** | **D4** (screenset + macropump; D5 needs C++ plugin) | Yes | binary `.dat` | none |
+| **Duet / DWC** | **D5** (out-of-tree ZIP plugin + object model) | Yes — cleanest open target | object-model API | none |
+| **CNCjs** | **D5** (mounted widget) | Yes — *but no tool table to sync* | none | none |
+| **UGS** | **D5** (ship a build) | Yes — *but no tool table to sync* | none | none |
+| **gSender** | **D5 fork-only** | Fork, or separate sidecar window | thin JSON | none |
+| **grblHAL** | firmware events only | No (no screen; routes to sender) | opt-in table | none |
+| **Heidenhain TNC** | **D3** on-control / D5 *external companion* | **No on-control** (OEM wall) — external companion only | `TOOL.T` file | none |
+| **Haas NGC** | **D3** (program-triggered messages) | No (external PC display only) | offset file | none |
+| **Fanuc** | **D2** + D3 macro messages (deeper = OEM-licensed) | No (for a typical third party) | FOCAS / G10 | none |
+
+### What depth changes about priorities
+
+- **PathPilot is even stronger than first scored.** It's not just a cheap D2
+  reuse — because it *is* LinuxCNC, it can inherit the **GladeVCP D4 panel too**.
+  It's the only candidate where the full mount-request experience is nearly free.
+- **Fusion's D4 palette is the flagship demo:** surfacing "mount T5" *inside
+  Fusion* is a wow moment, and the architecture is documented. Build it as a
+  second slice on top of the file-based importer (sync core + surface, the
+  LinuxCNC split).
+- **Raise the existing FreeCAD addon D3→D4.** The ceiling is already D5; the
+  request-surfacing panel is the highest-value deepening of a client we already
+  ship, and it proves the pattern the other D4 hosts will copy.
+- **For walled controls (Heidenhain, Haas, Fanuc), D2 is the ceiling-bound
+  deliverable.** An on-control ambient panel is impossible for a third party;
+  don't burn effort chasing it. Surfacing for these shops, if needed, is an
+  *external companion* app, not an on-control panel.
+- **Principle:** *target the rung the need requires, capped by the ceiling.*
+  Build the host-agnostic sync core first; add the surface only where the
+  ceiling permits it and the operator need justifies it.
+
+---
+
 ## Prioritization
 
 ### Sequence by schema-shape risk first, reach second
