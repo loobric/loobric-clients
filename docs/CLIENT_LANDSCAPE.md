@@ -2,10 +2,10 @@
 
 A survey of software and hardware that produces or consumes CNC **tool data**
 — tool geometry, feeds & speeds, tool tables, tool numbers/pockets/offsets,
-tool life — and could therefore become a Smooth client (bidirectional sync) or
+tool life — and could therefore become a Loobric client (bidirectional sync) or
 data source (one-way ingest).
 
-**Status today.** Shipping clients: the reference CLI (`loobric-smooth`),
+**Status today.** Shipping clients: the reference CLI (`loobric-cli`),
 **FreeCAD CAM**, and **LinuxCNC**. Shipping importers: DIN 4000, STEP P21,
 GTC/ISO 13399, SolidCAM, hyperMILL.
 
@@ -20,7 +20,7 @@ GTC/ISO 13399, SolidCAM, hyperMILL.
 exposes a public, writable REST API — every "API" is sales- or partner-gated
 and undocumented publicly. But a handful of **open file formats each unlock
 several candidates at once**, and the most important ones are SQLite databases
-or documented JSON readable with the Python standard library Smooth already
+or documented JSON readable with the Python standard library Loobric already
 restricts itself to. Build formats, not one-off integrations.
 
 Three format investments cover most of the reachable surface:
@@ -79,8 +79,8 @@ Three format investments cover most of the reachable surface:
 | **Tormach PathPilot** | Control | Good (it *is* LinuxCNC `tool.tbl`) | Strong | **HIGH** | **Reuse the LinuxCNC client** — cheapest win. Handle reload-on-restart. |
 | **Heidenhain TNC** | Control | Good (plaintext `TOOL.T`, incl. tool-life columns) | Moderate (industrial) | **HIGH** | File via free TNCremo/LSV2; no SDK or option needed |
 | **Haas NGC** | Control | Partial (`O999999` / Setting-157 offset file) | Strong (PM subforum, r/Haas) | **HIGH** | File over USB/Ethernet; no SDK |
-| **Okuma OSP** (THINC) | Control | Good (free, write-capable .NET SDK) | Strong (PM subforum) | **HIGH** | On-machine THINC app → Smooth over network. Verify full-table coverage in the SDK `.chm`. |
-| **Mach4** | Control | Partial (Lua API + user-definable custom fields) | Active | High | Lua plugin; custom fields fit Smooth provenance |
+| **Okuma OSP** (THINC) | Control | Good (free, write-capable .NET SDK) | Strong (PM subforum) | **HIGH** | On-machine THINC app → Loobric over network. Verify full-table coverage in the SDK `.chm`. |
+| **Mach4** | Control | Partial (Lua API + user-definable custom fields) | Active | High | Lua plugin; custom fields fit Loobric provenance |
 | **Mach3** | Control | RE (binary `.dat`, layout published) | Large | High | File sync of `.dat`; corruption-prone, version-sensitive |
 | **RepRapFirmware / Duet** | Control | Good (`M563`/`G10`, Object Model `tools[]`) | Active/technical | Med-High | HTTP object-model API; no native diameter register |
 | **grblHAL** | Control | Partial (opt-in tool table, ≤32 tools) | Active/technical (Discord) | Med (High for ATC) | Serial `$`-cmd or C plugin. Verify NVS persistence (core#494). |
@@ -92,13 +92,13 @@ Three format investments cover most of the reachable surface:
 | **Mitsubishi** M8 | Control | Partial (CNC Open API socket/DLL) | Medium | Medium | EZSocket over TCP 683; tool-data specifics unverified |
 | **Fagor** | Control | Partial (ASCII export + free simulator) | Low-Med | Low-Med | ASCII file export/import |
 | **Siemens Sinumerik** | Control | Good spec, every path license-gated | Weakest (no hobbyists) | Medium | OPC UA tool nodes (paid) or `%TOA` file. Partner-gated. |
-| **Mazak** (Mazatrol/SMOOTH) | Control | Closed binary | Active (industrial) | **AVOID** | Proprietary binary **and** brand collision (see below) |
+| **Mazak** (Mazatrol/LOOBRIC) | Control | Closed binary | Active (industrial) | **AVOID** | Proprietary binary **and** brand collision (see below) |
 | GRBL, UGS, Candle, bCNC, CNCjs, Marlin, Klipper | Ctrl/Sender | None (no persistent tool table) | Large | **Low** | Nothing canonical to sync — GRBL-class hardware re-probes a single runtime TLO per change |
 
 ## Tool management, presetters, catalogs, standards
 
 Mostly **data sources** (one-way ingest of nominal geometry) rather than
-bidirectional clients. Smooth already ingests GTC/ISO 13399 — the move is to
+bidirectional clients. Loobric already ingests GTC/ISO 13399 — the move is to
 deepen that, not to chase gated vendor APIs.
 
 | Candidate | Cat | Docs | Role | Desire | Route |
@@ -108,7 +108,7 @@ deepen that, not to chase gated vendor APIs.
 | **ToolsUnited** (CIMSOURCE) | Catalog | Partial (DIN 4000/13399/GTC) | Data source | High (paywalled) | User GTC export; ToolsUnitedDirect = partnership |
 | **HSMAdvisor / FSWizard** | F&S+mgmt | Partial (Fusion JSON + `.hsmlib`) | Bidirectional client | High | File round-trip; living, approachable dev |
 | **Sandvik CoroPlus** | Catalog/lib | Partial (ISO 13399/GTC; API partner-gated) | Data source | High | Standard import; partnership for the live API |
-| **Kennametal NOVO** | Catalog | Partial (ISO 13399 export; public API is e-commerce only) | Data source | Medium | Standard import (already a Smooth sample source) |
+| **Kennametal NOVO** | Catalog | Partial (ISO 13399 export; public API is e-commerce only) | Data source | Medium | Standard import (already a Loobric sample source) |
 | **Harvey / Helical** | Catalog+F&S | Partial (free Fusion/Mastercam libraries) | Data source | High | Ingest via the Fusion-format importer |
 | **Zoller / TDM / WinTool** | Mgmt | Closed (partner-gated WebService) | Peer TMS client | Med-High | Partnership only; GTC exchange where possible |
 | **Haimer Microset** | Presetter | Partial (measured offsets out) | Data source | High (as-set geometry) | Per-control post-processor formats |
@@ -121,8 +121,8 @@ deepen that, not to chase gated vendor APIs.
 
 ## Integration depth
 
-Two systems can both "have a Smooth client" and deliver completely different
-value. LinuxCNC taught this: the cron CLI (`smooth_linuxcnc.py sync`) keeps the
+Two systems can both "have a Loobric client" and deliver completely different
+value. LinuxCNC taught this: the cron CLI (`loobric_linuxcnc.py sync`) keeps the
 tool table consistent, but it is *blind* — it cannot tell the operator "mount
 T5 now." Surfacing that required a second, deeper piece: the GladeVCP panel
 embedded in the LinuxCNC UI. **Data-format openness and integration depth are
@@ -140,8 +140,8 @@ The gap between them is the real backlog.
 |---|---|---|---|
 | **D0** | None | No programmatic surface (closed cloud / opaque binary, no file) | — |
 | **D1** | Manual exchange | User hand-exports/imports a file; one-shot | — |
-| **D2** | Unattended sync | Headless/CLI/cron syncs data both ways; blind to prompts | `smooth_linuxcnc.py sync` |
-| **D3** | In-app, user-invoked | Code runs inside the host; user clicks to sync; inline feedback | FreeCAD "Smooth" button |
+| **D2** | Unattended sync | Headless/CLI/cron syncs data both ways; blind to prompts | `loobric_linuxcnc.py sync` |
+| **D3** | In-app, user-invoked | Code runs inside the host; user clicks to sync; inline feedback | FreeCAD "Loobric" button |
 | **D4** | Ambient panel | Persistent/dockable UI that **surfaces server-driven state** — mount requests, conflicts, requested tools, bind status | **GladeVCP panel** |
 | **D5** | Event-driven/live | Reacts to host runtime events (tool change, touch-off) and/or server push; closes the loop automatically | — |
 
@@ -244,7 +244,7 @@ Don't model an integration as one monolithic per-vendor client. Mux three routes
 
 | Data axis | Best route | Direction | Multiplier? |
 |---|---|---|---|
-| **Catalog / nominal geometry / assemblies** | GTC / ISO 13399 / STEP-P21 | read+write (file) | **Yes — Smooth already parses it** |
+| **Catalog / nominal geometry / assemblies** | GTC / ISO 13399 / STEP-P21 | read+write (file) | **Yes — Loobric already parses it** |
 | **Live state** (tool life, pot/magazine location, measured geometry) | MTConnect + OPC UA 40501-1 | **read-only** | **Yes, but observe-only** |
 | **Write-back** (offsets, tool table) | per-vendor SDK (FOCAS / Siemens-UA / RemoTools / THINC) | read+write | **No — single-vendor** |
 
@@ -271,7 +271,7 @@ SDK write → `asserted`/`observed` per node.
 ### What this changes about priorities
 
 - **Deepening GTC/ISO 13399 ingest is the highest-leverage standards play** — it
-  is the *only* genuine cross-vendor multiplier, and Smooth already parses it.
+  is the *only* genuine cross-vendor multiplier, and Loobric already parses it.
   **MachiningCloud and TDM are the two bidirectional hubs** worth targeting; a
   subscribed user there exports GTC for the whole catalog tier.
 - **A single cross-vendor read-ingest adapter** (MTConnect + OPC UA 40501-1)
@@ -297,7 +297,7 @@ The dominant cost to minimize is **canonical-schema churn**: a change to the
 late and forces such a change reworks all the clients built before it.
 Therefore sequence by **schema-shape risk**, not by build difficulty or reach.
 
-Reading `smooth-core/docs/TOOL_SCHEMA.md`, the three-section model with per-field
+Reading `loobric-server/docs/TOOL_SCHEMA.md`, the three-section model with per-field
 provenance is well-factored, and it already absorbs several axes: nominal vs
 measured vs as-set geometry, media/3D models, and — critically —
 **composition/assemblies are *allowed* in the schema** (`item_type`,
@@ -348,13 +348,13 @@ MTConnect is special — it's both a format investment *and* a Tier-A gap-finder
 
 - **Treat catalogs as ingest, not clients.** MachiningCloud, ToolsUnited,
   Sandvik, Kennametal, Harvey are nominal-geometry sources. Polish the "user
-  exports a GTC package → imports to Smooth" path. MachiningCloud's *free* GTC
+  exports a GTC package → imports to Loobric" path. MachiningCloud's *free* GTC
   export makes it the best demo target today. Don't chase their gated APIs.
 
 - **Two hard "avoid" calls.**
    - **Mazak** — proprietary binary *and* an in-domain brand collision:
-     Mazak's control line is branded **"SMOOTH"** with competing "SMOOTH Tool
-     Management" products in this exact space. "Smooth for SMOOTH" is
+     Mazak's control line is branded **"LOOBRIC"** with competing "LOOBRIC Tool
+     Management" products in this exact space. "Loobric for LOOBRIC" is
      unmarketable and carries trademark/SEO risk.
    - **Siemens Sinumerik** — technically clean (writable OPC UA tool nodes) but
      triple-license-gated with zero recruitable testers. Partner-gated only.
@@ -374,7 +374,7 @@ MTConnect is special — it's both a format investment *and* a Tier-A gap-finder
 
 **Wave 0 — schema gap spike (cheap, parallelizable, do before any Wave-1 code).**
 Map the full field sets of **Heidenhain `TOOL.T`**, **MTConnect `CuttingTool`**,
-and **a Mastercam turning + assembly library** onto the `smooth/contract/`
+and **a Mastercam turning + assembly library** onto the `loobric/contract/`
 Pydantic models *on paper*. Every field with no home is a canonical gap. Output:
 the list of required canonical additions (tool life, sister tools, wear-offset
 model, turning geometry) — found for ~zero build cost, before writing a client
