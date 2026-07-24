@@ -9,6 +9,17 @@ data source (one-way ingest).
 **FreeCAD CAM**, and **LinuxCNC**. Shipping importers: DIN 4000, STEP P21,
 GTC/ISO 13399, SolidCAM, hyperMILL.
 
+**A client class this survey predates: AI agents.** The **Loobric MCP
+server** (`loobric-mcp`, shipped from the loobric-cli repo — see the
+top-level `MCP_PLAN.md`) lets any MCP host (Claude Code, Claude Desktop, …)
+read and write tool data through the public API's audited doors: every agent
+write is stamped `asserted:<agent>@mcp`, agents assert but never observe, and
+they cannot delete, confirm bindings, or overwrite machine-measured values.
+Strategically it also bends this document's central finding: agents collapse
+the marginal cost of format mapping, so the format-first investments below
+get cheaper to multiply — while the canonical schema and provenance ledger
+become the part that matters most.
+
 > Research compiled 2026-06-29. Ratings are point-in-time; closed/commercial
 > systems change their integration surface without notice. Verify the
 > highest-stakes facts (a vendor's format, a paywall, a community's activity)
