@@ -4,6 +4,27 @@ All notable changes to **loobric-linuxcnc** (the LinuxCNC controller-side client
 for Loobric) are recorded here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] — 2026-07-29 (pairs with loobric-server 0.7.0 setups)
+
+### Changed (BREAKING with servers < 0.7.0 for the setup report only)
+- **The claim report now reads the server's setup view**
+  (`GET /machine-set-maps/status`) instead of unioning machine-linked
+  sets: states widen to requested / **mismounted** (CAM says Tm, table has Tp)
+  / **blocked** (claimed pocket held by a different confirmed tool, named) /
+  pending bind, and unclaimed table rows surface as **notes** (counted, never
+  colored). A fully satisfied setup reads `Ready (<set>) - N tools in sync`.
+  Health: red = unmet hard claim, yellow = pending bind only, green = ready or
+  no active setup. Names arrive with the view — the per-instance label fetch
+  is gone. Against a pre-setups server the endpoint 404s and the machine
+  behaves as setup-less (green, "In sync - nothing to do").
+- State-file `summary` gains `ready`, `setup`, `attention`, `notes`;
+  `requested`/`pending`/`health`/`message` keep their shapes for the panel.
+- **The GladeVCP panel shows the setup line**: a new `setup` label renders
+  "Setup: bracket-job — READY, 2 note(s)" from the persisted summary (blank
+  when no setup is active); the color legend now reads green = ready, yellow =
+  pending bind only, red = requested/mismounted/blocked. Older `.ui` copies
+  without the label keep working (the handler tolerates its absence).
+
 ## [0.6.1] — 2026-06-28
 
 ### Fixed

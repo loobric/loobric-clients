@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "loobric-linuxcnc"
-version = "0.6.1"
+version = "0.7.0"
 description = "LinuxCNC integration for Loobric tool synchronization"
 readme = "README.md"
 requires-python = ">=3.6"

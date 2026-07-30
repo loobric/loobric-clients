@@ -16,13 +16,16 @@ server in step, both directions:
 - **Never a guess:** entries pair with CAM tool records on the server (the
   Inbox), and a tool changed on *both* sides between syncs is reported as a
   conflict touching neither — resolve by re-editing one side.
-- **Tells you what to load:** when a tool set bound to this machine asks for a
-  tool the table doesn't have yet, sync reports it as **requested** — named by
-  both its human name and its full instance id, with a target pocket when the set
-  states one — so the operator knows exactly what to mount. Once it's mounted the
-  next sync reads **pending bind** until the binding is confirmed on the server,
-  then folds back into "in sync". An outstanding request never reads as
-  "nothing to do".
+- **Tells you what to load:** when the machine's **active setup** (the tool set
+  an operator picked with `loobric use-set`) claims a tool the table doesn't
+  satisfy, sync reports it — **requested** (mount it, with the claimed pocket
+  when one is stated), **mismounted** (CAM says T14, table has T9 — remount or
+  renumber CAM), or **blocked** (the claimed pocket holds a different confirmed
+  tool — the dangerous case, named explicitly). Once mounted, the next sync
+  reads **pending bind** until identity is confirmed, then **Ready**. Table
+  rows the setup doesn't claim are counted as **notes** — informational only,
+  never alarms. An unmet claim never reads as "nothing to do", and the client
+  never edits the `.tbl` for a claim: Loobric is a witness, not an interlock.
 
 ## Design constraints (why this is one file)
 
@@ -125,11 +128,12 @@ loobric-linuxcnc push            # one-way, table -> server only
 The machine is created on the server on first contact.
 
 Once the table is pushed, a `sync` still tells you what the bench owes — an
-open load request is folded into the in-sync summary, not hidden behind
-"nothing to do":
+unmet claim from the machine's active setup is folded into the in-sync
+summary, not hidden behind "nothing to do":
 
 ```
 [2026-06-09 12:05:00] 5 tools in sync, 1 tool requested: "1/4 downcut" (inst-7f3a91) - mount it and assign pocket 5
+[2026-06-09 12:41:00] Ready (bracket-job) - 6 tools in sync, 2 note(s)
 ```
 
 ### 5. Automate (cron)

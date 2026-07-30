@@ -5,10 +5,14 @@ running LinuxCNC GUI. It is READ-ONLY with respect to tools: it never edits the
 tool table and never intercepts M6. It only reflects the `summary` the sync
 client persists to state-<machine>.json, and offers a button to run a sync.
 
-    green   - fully in sync
-    yellow  - in sync, but a tool bind is still pending
-    red     - a tool mount is REQUESTED: the operator must mount it
+    green   - ready (or no active setup): nothing to do
+    yellow  - mounted but identity unconfirmed (pending bind only)
+    red     - an unmet claim needs a hand: requested / mismounted / blocked
     stale   - no sync yet, or the last sync is too old to trust
+
+A second line names the active setup and its standing ("Setup: bracket-job —
+READY, 2 note(s)") when the machine has one; notes are informational only and
+never change the color.
 
 The button runs `loobric-linuxcnc sync` - the same command the cron job runs -
 so all server I/O stays in one place. This panel only displays and requests;
@@ -51,6 +55,7 @@ class HandlerClass:
         self.hal = halcomp
         self.builder = builder
         self.led = builder.get_object('led')
+        self.setup = builder.get_object('setup')   # absent in older .ui copies
         self.message = builder.get_object('message')
         self.sync_button = builder.get_object('sync_button')
         self._syncing = False
@@ -105,9 +110,33 @@ class HandlerClass:
                 summary.get("last_sync_local", "unknown")
 
         self._set_led(health)
+        if self.setup is not None:
+            self.setup.set_text(self._setup_line(summary))
         if self.message is not None:
             self.message.set_text(message)
             self.message.set_tooltip_text(message)
+
+    @staticmethod
+    def _setup_line(summary):
+        """One line naming the machine's active setup and its standing —
+        'Setup: bracket-job — READY, 2 note(s)' — from the summary fields the
+        sync persists (`setup`/`ready`/`attention`/`notes`). Empty (and thus
+        invisible) when no setup is active or the client predates setups."""
+        name = summary.get("setup")
+        ready = summary.get("ready")
+        if not name or ready is None:
+            return ""
+        line = "Setup: %s — %s" % (name, "READY" if ready else "NOT READY")
+        bits = []
+        attention = summary.get("attention") or 0
+        notes = summary.get("notes") or 0
+        if attention:
+            bits.append("%d need attention" % attention)
+        if notes:
+            bits.append("%d note(s)" % notes)
+        if bits:
+            line += ", " + ", ".join(bits)
+        return line
 
     def _read_summary(self):
         if not self.state_file:

@@ -123,9 +123,10 @@ class FakeServer:
         e["internal"]["version"] += 1
 
     def make_set(self, members, name="millstone"):
-        """Bind a tool set to this machine. `members` is a list of
-        (tool_record_id, number, state) - number/state may be None.  A None
-        number is an unknown preference; an int is an asserted preference."""
+        """Make a tool set this machine's ACTIVE SETUP. `members` is a list of
+        (tool_record_id, number, state) - number/state may be None. A None
+        number is an unknown claim; an int is an asserted claim. An explicit
+        state (e.g. "pending bind") is honored verbatim in the derived view."""
         out = []
         for spec in members:
             tool_record_id, number, state = (list(spec) + [None, None])[:3]
@@ -135,17 +136,86 @@ class FakeServer:
             if state is not None:
                 member["state"] = state
             out.append(member)
-        self.tool_set = {
-            "internal": {"id": "set-1", "version": 1,
-                         "created_at": "t", "updated_at": "t"},
-            "canonical": {
-                "name": {"value": name, "source": "asserted:freecad@bob"},
-                "machine_id": {"value": self.machine_id,
-                               "source": "asserted:freecad@bob"},
-                "members": out,
-            },
-            "clients": {},
-        }
+        self.tool_set = {"name": name, "members": out}
+
+    def _recon(self):
+        """The setup view the real server derives at read time (MAPPING_PLAN
+        §5.2/§5.4): claims classified against this fake's entries + notes for
+        unclaimed rows. Models the contract, not the implementation."""
+        if self.tool_set is None:
+            return {"machine_id": self.machine_id, "active": False,
+                    "ready": None, "claims": [], "notes": [],
+                    "attention": {"important": 0, "notes": 0}}
+        bound_at = {}      # instance id -> entry
+        for e in self.entries.values():
+            b = e["canonical"]["bound_instance_id"]["value"]
+            if b is not None:
+                bound_at[b] = e
+        by_number = {e["canonical"]["tool_number"]["value"]: e
+                     for e in self.entries.values()}
+
+        def _name(iid):
+            rec = self.instances.get(iid)
+            return ((rec or {}).get("canonical") or {}).get(
+                "name", {}).get("value")
+
+        claims = []
+        consumed = set()
+        for m in self.tool_set["members"]:
+            iid = m["tool_record_id"]
+            claimed = m["number"].get("value")
+            entry = bound_at.get(iid)
+            observed = None
+            state = m.get("state")
+            entry_id = None
+            blocked_by = None
+            if state is None:
+                if entry is not None:
+                    n = entry["canonical"]["tool_number"]["value"]
+                    observed = {"value": n, "source": self._src()}
+                    state = ("satisfied" if claimed in (None, n) else "mismounted")
+                    entry_id = entry["internal"]["id"]
+                    consumed.add(entry_id)
+                elif claimed is not None and claimed in by_number:
+                    at = by_number[claimed]
+                    holder = at["canonical"]["bound_instance_id"]["value"]
+                    observed = {"value": claimed, "source": self._src()}
+                    entry_id = at["internal"]["id"]
+                    if holder is None:
+                        state = "pending bind"
+                        consumed.add(entry_id)
+                    else:
+                        state = "blocked"
+                        blocked_by = {"tool_record_id": holder,
+                                      "name": _name(holder)}
+                else:
+                    state = "requested"
+            claim = {"tool_record_id": iid, "name": _name(iid),
+                     "number": m["number"], "observed": observed,
+                     "state": state, "entry_id": entry_id}
+            if blocked_by:
+                claim["blocked_by"] = blocked_by
+            claims.append(claim)
+        notes = []
+        member_ids = {m["tool_record_id"] for m in self.tool_set["members"]}
+        for e in self.entries.values():
+            if e["internal"]["id"] in consumed:
+                continue
+            b = e["canonical"]["bound_instance_id"]["value"]
+            if b is not None and b in member_ids:
+                continue
+            n = e["canonical"]["tool_number"]["value"]
+            notes.append({"entry_id": e["internal"]["id"],
+                          "number": {"value": n, "source": self._src()},
+                          "state": "unlisted" if b else "unknown tool",
+                          "tool_record_id": b, "name": _name(b) if b else None,
+                          "description": None})
+        important = sum(1 for c in claims if c["state"] != "satisfied")
+        return {"machine_id": self.machine_id, "active": True,
+                "setup_id": "map-1", "tool_set_id": "set-1",
+                "tool_set_name": self.tool_set["name"],
+                "ready": important == 0, "claims": claims, "notes": notes,
+                "attention": {"important": important, "notes": len(notes)}}
 
     def set_instance(self, iid, name=None):
         """Register a tool-instance record so the client can resolve a requested
@@ -182,8 +252,8 @@ class FakeServer:
                 return {"internal": {"id": self.machine_id, "version": 1},
                         "canonical": {}, "clients": {}}
             raise sl.ServerError(404, "not found")
-        if method == "GET" and "/api/v1/tool-set-records" in url:
-            return {"items": [self.tool_set] if self.tool_set else []}
+        if method == "GET" and "/api/v1/machine-set-maps/status" in url:
+            return self._recon()
         if method == "GET" and "/api/v1/tool-table-entry-records" in url:
             return {"items": list(self.entries.values())}
         if method == "POST" and url.endswith("/tool-table-entry-records/sync"):
@@ -489,16 +559,16 @@ class RequestedMembersTest(SyncCycleTest):
         self.assertNotIn("pocket 8", summary)
         self.assertNotIn("assign pocket ", summary)
 
-    def test_all_members_bound_reports_no_request(self):
-        """When every member's instance is bound to a machine entry, there is
-        no request - the sync reads as a clean in-sync no-op."""
+    def test_all_claims_met_reports_ready(self):
+        """When every claim is satisfied the sync reads READY, naming the
+        setup - not a bare 'nothing to do' (the machine IS set up for a job)."""
         self.run_sync()
         ids = self.bound_for_local()
         self.server.make_set([(ids[3], None, None), (ids[5], None, None)])
         code, logs = self.sync_with_logs()
         self.assertEqual(code, 0)
         self.assertFalse(any("requested" in m for m in logs), logs)
-        self.assertTrue(any("In sync" in m for m in logs))
+        self.assertTrue(any("Ready (millstone)" in m for m in logs), logs)
 
     def test_in_sync_summary_accounts_for_request(self):
         """An outstanding request must not read as 'nothing to do'; the summary
@@ -531,14 +601,14 @@ class RequestedMembersTest(SyncCycleTest):
         self.assertFalse(any("requested" in m for m in logs))
         self.assertTrue(any("In sync" in m for m in logs))
 
-    def test_set_endpoint_404_is_swallowed(self):
-        """A 404 from the set endpoint (no set / unsupported filter) does not
-        abort the sync; it behaves as a setless machine."""
+    def test_setup_endpoint_404_is_swallowed(self):
+        """A 404 from the setup view (a pre-0.7.0 server without setups) does
+        not abort the sync; it behaves as a setup-less machine."""
         self.run_sync()
         real_http = self.server.http
 
         def http(method, url, api_key, body=None, timeout=10):
-            if method == "GET" and "/api/v1/tool-set-records" in url:
+            if method == "GET" and "/api/v1/machine-set-maps" in url:
                 raise sl.ServerError(404, "not found")
             return real_http(method, url, api_key, body, timeout)
         logs = []
@@ -547,6 +617,46 @@ class RequestedMembersTest(SyncCycleTest):
             code = sl.sync_tool_table(self.cfg)
         self.assertEqual(code, 0)
         self.assertTrue(any("In sync" in m for m in logs))
+
+    def test_mismounted_claim_reports_both_numbers(self):
+        """A claim whose tool is mounted at a different number reports both
+        sides and both honest resolutions - the client never renumbers."""
+        self.run_sync()
+        ids = self.bound_for_local()
+        # inst-3 is bound at T3, but CAM claims T14 for it.
+        self.server.make_set([(ids[3], 14, None), (ids[5], None, None)])
+        code, logs = self.sync_with_logs()
+        line = [m for m in logs if "mismounted" in m or "CAM says" in m]
+        self.assertTrue(line, logs)
+        self.assertIn("CAM says T14", line[0])
+        self.assertIn("table has T3", line[0])
+        self.assertEqual(self.read_tbl(), TBL)   # never edited for a claim
+
+    def test_blocked_claim_names_the_squatter(self):
+        """The dangerous case: the claimed number is held by a DIFFERENT
+        confirmed tool. The report names the occupant."""
+        self.run_sync()
+        self.server.bind(3, "inst-other")
+        self.server.set_instance("inst-other", name="20mm slot mill")
+        self.server.set_instance("inst-new", name="face mill")
+        self.server.make_set([("inst-new", 3, None)])
+        code, logs = self.sync_with_logs()
+        line = [m for m in logs if "occupied" in m]
+        self.assertTrue(line, logs)
+        self.assertIn("20mm slot mill", line[0])
+        self.assertIn("face mill", line[0])
+
+    def test_notes_are_counted_but_never_block(self):
+        """Table rows the set doesn't claim (the probe, leftovers) are notes:
+        counted in the message, never colored, never blocking READY."""
+        self.run_sync()
+        ids = self.bound_for_local()
+        # Claim only T3's tool; T5's bound tool becomes an unlisted note.
+        self.server.make_set([(ids[3], None, None)])
+        code, logs = self.sync_with_logs()
+        ready = [m for m in logs if "Ready" in m]
+        self.assertTrue(ready, logs)
+        self.assertIn("1 note(s)", ready[0])
 
 
 class PersistedSummaryTest(SyncCycleTest):

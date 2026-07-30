@@ -62,7 +62,7 @@ import urllib.request
 DEFAULT_CONFIG_PATH = os.path.expanduser("~/.config/loobric/linuxcnc.conf")
 HTTP_TIMEOUT = 10  # seconds
 CLIENT_NAME = "linuxcnc"
-CLIENT_VERSION = "0.6.1"
+CLIENT_VERSION = "0.7.0"
 
 
 class ToolTableError(Exception):
@@ -308,163 +308,151 @@ def _local_offsets(tool):
 
 
 # ---------------------------------------------------------------------------
-# Tool set members: requested / pending bind (loobric-linuxcnc#3)
+# The setup view: claims vs. machine truth (MAPPING_PLAN.md)
 #
-# A machine may have a tool SET bound to it (docs/ROUNDTRIP.md). A set member
-# references a tool INSTANCE; when that instance is not yet loaded on this
-# machine, the member is a request the operator must fulfil by mounting the
-# tool. The controller only REPORTS this - it never edits the .tbl for a
-# requested tool. Fulfilment is the operator mounting it and adding the .tbl
-# line, which the existing merge push then turns into a new entry.
+# A machine may have an ACTIVE SETUP: the tool set an operator declared it is
+# being set up for (`loobric use-set`). The server derives, at read time, how
+# reality compares to that set's claims: satisfied / requested / mismounted /
+# blocked / pending bind, plus informational notes (unlisted / unknown tools).
+# The controller only REPORTS this - it never edits the .tbl for a claim.
+# Fulfilment is the operator mounting/unloading tools; the existing merge push
+# then closes the loop. Loobric is a witness, never an interlock.
 # ---------------------------------------------------------------------------
 
-def _bound_instance_ids(server_entries):
-    """The set of tool-instance ids bound to this machine's entries, read from
-    each entry's canonical.bound_instance_id.value (unbound entries skipped)."""
-    ids = set()
-    for entry in server_entries:
-        field = (entry.get("canonical") or {}).get("bound_instance_id") or {}
-        if field.get("value") is not None:
-            ids.add(field["value"])
-    return ids
+def _fetch_reconciliation(base_url, machine_id, api_key):
+    """GET the machine's setup view (ready / claims / notes). None when the
+    server has no setups endpoint (pre-0.7.0) - the machine then behaves as
+    setup-less, exactly as before."""
+    try:
+        return http_json(
+            "GET", "%s/api/v1/machine-set-maps/status?machine_id=%s"
+            % (base_url, machine_id), api_key)
+    except ServerError as e:
+        if e.code == 404:
+            return None
+        raise
 
 
-def _member_descriptor(member):
-    """How a requested member is identified in the mount request: BOTH its full
-    instance id and its human name. The id is the unique handle - two tools may
-    share a name (e.g. duplicate "M8"s), so it must be carried for the operator
-    to mount the right one - and the name is what makes it recognizable. Falls
-    back to the id alone when the instance has no resolvable name."""
-    tid = member.get("tool_record_id")
-    name = member.get("name")
+def _claim_descriptor(claim):
+    """How a claim's tool is identified in the report: BOTH its full instance
+    id and its human name (the view resolves names server-side). The id is the
+    unique handle - two tools may share a name - and the name is what makes it
+    recognizable. Falls back to the id alone when nameless."""
+    tid = claim.get("tool_record_id")
+    name = claim.get("name")
     return '"%s" (%s)' % (name, tid) if name else '"%s"' % tid
 
 
-def _member_preferred_number(member):
-    """The member's asserted preferred tool number, or None when unknown.
-    `number` is {"value": int|None, "source": ...}; only an asserted preference
-    carries a value, so a value is what lets us suggest a concrete pocket."""
-    return (member.get("number") or {}).get("value")
+def _claim_number(claim):
+    """The claim's asserted tool number value, or None when unknown."""
+    return (claim.get("number") or {}).get("value")
 
 
-def classify_set_members(members, server_entries):
-    """Split a machine-bound set's members into (requested, pending) lists,
-    using only data already fetched - the set's members and this machine's
-    entries - with no extra per-member server calls.
+def _observed_number(claim):
+    return (claim.get("observed") or {}).get("value")
 
-    REQUESTED: no entry on this machine is bound to the member's instance, so
-    the operator must still mount it. LOADED: an entry is bound to it (in sync,
-    not reported).
 
-    PENDING BIND simplification (docs/ROUNDTRIP_FIXES.md C4): telling a pending
-    bind (an entry was mounted for the instance but the binding is not yet
-    confirmed) apart from loaded/requested needs proposal state the controller
-    does not hold. We therefore trust the server's derived per-member `state`
-    when it supplies one (it sees proposals): state == "pending bind" -> pending.
-    Absent that signal we fall back to the binding alone: bound -> loaded (in
-    sync), unbound-but-in-set -> requested.
-    """
-    bound = _bound_instance_ids(server_entries)
-    requested = []
+def classify_claims(recon):
+    """Split the setup view's claims into (hard, pending) lists: `hard` needs
+    the operator or the programmer (requested / mismounted / blocked), `pending`
+    is mounted-awaiting-identity-confirmation. Satisfied claims are in sync and
+    not reported. Returns ([], []) for a setup-less machine (recon None or
+    inactive)."""
+    if not recon or not recon.get("active"):
+        return [], []
+    hard = []
     pending = []
-    for member in members:
-        if member.get("state") == "pending bind":
-            pending.append(member)
+    for claim in recon.get("claims") or []:
+        state = claim.get("state")
+        if state == "satisfied":
             continue
-        if member.get("tool_record_id") in bound:
-            continue  # loaded: in sync, nothing to report
-        requested.append(member)
-    return requested, pending
-
-
-def _requested_clause(requested):
-    """Render the ', N tool(s) requested: ...' suffix for the in-sync summary.
-    Each requested tool is named; a 'assign pocket <n>' suffix appears ONLY when
-    the member carries an asserted preferred number, otherwise the operator
-    picks the pocket (docs/ROUNDTRIP.md step 7)."""
-    parts = []
-    for member in requested:
-        desc = _member_descriptor(member)
-        pocket = _member_preferred_number(member)
-        if pocket is not None:
-            parts.append('%s - mount it and assign pocket %d' % (desc, pocket))
+        if state == "pending bind":
+            pending.append(claim)
         else:
-            parts.append('%s - mount it and assign a pocket' % desc)
-    noun = "tool" if len(requested) == 1 else "tools"
-    return ", %d %s requested: %s" % (len(requested), noun, "; ".join(parts))
+            hard.append(claim)
+    return hard, pending
 
 
-def _build_status_summary(requested, pending, local_count):
+def _claim_clause(claim):
+    """One actionable phrase per unmet hard claim. The instruction changes with
+    the state: a requested tool is a mount, a mismount is a remount-or-renumber
+    (the programmer may concede instead), a blocked slot must be vacated or the
+    claim renumbered. Never an edit the client performs itself."""
+    state = claim.get("state")
+    desc = _claim_descriptor(claim)
+    number = _claim_number(claim)
+    if state == "requested":
+        if number is not None:
+            return "%s - mount it and assign pocket %d" % (desc, number)
+        return "%s - mount it and assign a pocket" % desc
+    if state == "mismounted":
+        return ("%s - CAM says T%s, table has T%s: remount or renumber CAM"
+                % (desc, number, _observed_number(claim)))
+    if state == "blocked":
+        blocker = (claim.get("blocked_by") or {}).get("name") or "another tool"
+        return ("%s - T%s is occupied by '%s': unload it or renumber the claim"
+                % (desc, number, blocker))
+    return "%s - %s" % (desc, state)
+
+
+def _build_status_summary(recon, local_count):
     """The operator-facing status the panel reads from the state file. It is a
-    projection of what the sync already computed - no extra work - so the GUI
-    and the CLI never disagree about the machine's state.
+    projection of the server's setup view - no extra work - so the GUI and the
+    CLI never disagree about the machine's state.
 
-    health: red    = a tool must be mounted (an outstanding request),
-            yellow = in sync but a bind is still pending,
-            green  = fully in sync.
-    message is the same one-line summary the CLI logs; `requested` is the
-    structured list (name/id/preferred pocket) for a richer panel display."""
-    if requested:
+    health: red    = an unmet claim needs a hand (requested/mismounted/blocked),
+            yellow = mounted but identity unconfirmed (pending bind only),
+            green  = ready, or no active setup.
+    Notes (unlisted / unknown tools) are informational ONLY: real differences,
+    unimportant - they are counted, never colored (MAPPING_PLAN §5.3).
+    `requested` keeps its shape (name/id/preferred pocket) for the panel."""
+    hard, pending = classify_claims(recon)
+    if hard:
         health = "red"
     elif pending:
         health = "yellow"
     else:
         health = "green"
-    if requested or pending:
+    notes = (recon or {}).get("notes") or [] if recon and recon.get("active") else []
+    set_name = (recon or {}).get("tool_set_name")
+    if hard or pending:
         message = "%d tools in sync" % local_count
-        if requested:
-            message += _requested_clause(requested)
+        if hard:
+            requested_only = [c for c in hard if c.get("state") == "requested"]
+            others = [c for c in hard if c.get("state") != "requested"]
+            if requested_only:
+                noun = "tool" if len(requested_only) == 1 else "tools"
+                message += ", %d %s requested: %s" % (
+                    len(requested_only), noun,
+                    "; ".join(_claim_clause(c) for c in requested_only))
+            for c in others:
+                message += ", " + _claim_clause(c)
         if pending:
             message += ", %d pending bind" % len(pending)
+    elif recon and recon.get("active"):
+        message = "Ready (%s) - %d tools in sync" % (set_name or "setup",
+                                                     local_count)
     else:
         message = "In sync - nothing to do"
+    if notes:
+        message += ", %d note(s)" % len(notes)
     return {
         "health": health,
         "message": message,
+        "ready": (recon or {}).get("ready") if recon and recon.get("active") else None,
+        "setup": set_name,
         "requested": [
-            {"name": m.get("name"),
-             "tool_record_id": m.get("tool_record_id"),
-             "preferred_number": _member_preferred_number(m)}
-            for m in requested
+            {"name": c.get("name"),
+             "tool_record_id": c.get("tool_record_id"),
+             "preferred_number": _claim_number(c)}
+            for c in hard if c.get("state") == "requested"
         ],
+        "attention": len(hard) + len(pending),
         "pending": len(pending),
+        "notes": len(notes),
         "last_sync": time.time(),
         "last_sync_local": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
-
-
-def _fetch_set_members(base_url, machine_id, api_key):
-    """C1: GET the tool set bound to this machine and return its members (the
-    union if more than one set is bound). A machine with no bound set - an empty
-    item list or a 404 - yields [], so the requested-tool report is purely
-    additive and a setless machine behaves exactly as before."""
-    try:
-        result = http_json(
-            "GET", "%s/api/v1/tool-set-records?machine_id=%s"
-            % (base_url, machine_id), api_key)
-    except ServerError as e:
-        if e.code == 404:
-            return []
-        raise
-    members = []
-    for tool_set in result.get("items", []):
-        members.extend((tool_set.get("canonical") or {}).get("members") or [])
-    return members
-
-
-def _fetch_instance_label(base_url, instance_id, api_key):
-    """A human-recognizable name for a requested member's tool instance. The set
-    member carries only the instance id; we GET the instance to read its
-    canonical name. Best-effort - a missing/nameless instance or any fetch error
-    yields None so the report falls back to the id and the sync never breaks."""
-    if not instance_id:
-        return None
-    try:
-        rec = http_json("GET", "%s/api/v1/tool-instance-records/%s"
-                        % (base_url, instance_id), api_key)
-    except (ServerError, ServerUnreachable):
-        return None
-    return ((rec.get("canonical") or {}).get("name") or {}).get("value")
 
 
 # ---------------------------------------------------------------------------
@@ -1125,9 +1113,10 @@ def sync_tool_table(config):
         server = {_entry_tool_number(e): e for e in http_json(
             "GET", "%s/api/v1/tool-table-entry-records?machine_id=%s"
             % (base_url, machine_id), api_key).get("items", [])}
-        # C1: also pull the tool set bound to this machine (if any), so we can
-        # surface members the operator still has to mount (requested).
-        set_members = _fetch_set_members(base_url, machine_id, api_key)
+        # Also pull the machine's setup view (if any): the server's derived
+        # comparison of the active set's claims against this table, so we can
+        # surface what the operator still has to mount / move / vacate.
+        recon = _fetch_reconciliation(base_url, machine_id, api_key)
     except ServerUnreachable as e:
         log("Server not reachable, will retry next sync: %s" % e)
         return 0
@@ -1255,23 +1244,14 @@ def sync_tool_table(config):
         log("Removed %d tool(s) deleted locally: T%s"
             % (len(removed), ", T".join(str(n) for n in removed)))
 
-    # C2/C3: classify the bound set's members against this machine's entries
-    # and fold any outstanding request (or pending bind) into the in-sync
-    # summary - an open request must NOT read as "nothing to do". The .tbl is
-    # never edited for a requested tool; fulfilment is the merge push above.
-    # This runs BEFORE the save so the operator status lands in the state file
-    # the panel reads (one file, one source of truth).
-    requested, pending = classify_set_members(set_members, server.values())
-    # Resolve a human-recognizable name for each requested member so the operator
-    # sees e.g. "M8" rather than the bare instance id (the set member carries
-    # only the id). Falls back to the id when the instance has no name.
-    for member in requested:
-        if not member.get("name"):
-            label = _fetch_instance_label(
-                base_url, member.get("tool_record_id"), api_key)
-            if label:
-                member["name"] = label
-    summary = _build_status_summary(requested, pending, len(local_tools))
+    # Fold the setup view's unmet claims (and pending binds) into the in-sync
+    # summary - an unmet claim must NOT read as "nothing to do". The .tbl is
+    # never edited for a claim; fulfilment is the operator's mount/unload and
+    # the merge push above. Notes never change the health color. This runs
+    # BEFORE the save so the operator status lands in the state file the panel
+    # reads (one file, one source of truth).
+    hard, pending = classify_claims(recon)
+    summary = _build_status_summary(recon, len(local_tools))
 
     # record the new baseline (conflicted tools keep their OLD baseline so
     # they are re-detected next sync)
@@ -1291,10 +1271,11 @@ def sync_tool_table(config):
                              "summary": summary})
 
     clean = not to_push and not to_write and not to_delete and not conflicts
-    if requested or pending:
+    if hard or pending:
         log(summary["message"])
     elif clean:
-        log("In sync - nothing to do")
+        log(summary["message"] if recon and recon.get("active")
+            else "In sync - nothing to do")
     return 0
 
 
