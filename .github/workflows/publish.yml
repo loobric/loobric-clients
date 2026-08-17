@@ -11,6 +11,12 @@ name: publish to PyPI
 on:
   push:
     tags: ['*-v*']
+  workflow_dispatch:
+    inputs:
+      client:
+        description: 'Client folder to publish (e.g. masso) — for re-running a tag that predates this workflow'
+        required: true
+        type: string
 
 jobs:
   publish:
@@ -20,12 +26,16 @@ jobs:
       id-token: write   # trusted publishing
     steps:
       - uses: actions/checkout@v4
-      - name: Resolve client folder from tag
+      - name: Resolve client folder from tag or input
         id: client
         run: |
-          TAG="${GITHUB_REF_NAME}"            # e.g. masso-v0.1.0
-          NAME="${TAG%-v*}"                    # -> masso
-          test -d "clients/$NAME" || { echo "no clients/$NAME for tag $TAG"; exit 1; }
+          if [ -n "${{ inputs.client }}" ]; then
+            NAME="${{ inputs.client }}"
+          else
+            TAG="${GITHUB_REF_NAME}"          # e.g. masso-v0.1.0
+            NAME="${TAG%-v*}"                  # -> masso
+          fi
+          test -d "clients/$NAME" || { echo "no clients/$NAME"; exit 1; }
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-python@v5
         with:
