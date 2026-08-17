@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<pyvcp>
+  <vbox>
+    <label>LED:</label>
+    <led>
+      <halpin>"led"</halpin>
+      <size>30</size>
+    </led>
+    <button>
+      <halpin>"button"</halpin>
+      <text>"Toggle"</text>
+    </button>
+  </vbox>
+</pyvcp>

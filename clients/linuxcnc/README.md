@@ -1,0 +1,180 @@
+# Loobric LinuxCNC Client
+
+> Push your LinuxCNC tool table to a [Loobric](https://github.com/loobric/loobric-server) server. One file, standard library only, cron-safe.
+
+## What it does
+
+`loobric_linuxcnc.py sync` keeps your machine's tool table (`.tbl`) and a Loobric
+server in step, both directions:
+
+- **Machine → server:** tool numbers, pockets, offsets, comments — raw table
+  lines preserved losslessly. A touch-off at the machine reaches your CAM-side
+  tool record on the next sync, with provenance.
+- **Server → machine:** changes to **bound** entries are written back into the
+  table — line-surgically (your comments survive), with a timestamped backup
+  first. Unbound entries never write back.
+- **Never a guess:** entries pair with CAM tool records on the server (the
+  Inbox), and a tool changed on *both* sides between syncs is reported as a
+  conflict touching neither — resolve by re-editing one side.
+- **Tells you what to load:** when the machine's **active setup** (the tool set
+  an operator picked with `loobric use-set`) claims a tool the table doesn't
+  satisfy, sync reports it — **requested** (mount it, with the claimed pocket
+  when one is stated), **mismounted** (CAM says T14, table has T9 — remount or
+  renumber CAM), or **blocked** (the claimed pocket holds a different confirmed
+  tool — the dangerous case, named explicitly). Once mounted, the next sync
+  reads **pending bind** until identity is confirmed, then **Ready**. Table
+  rows the setup doesn't claim are counted as **notes** — informational only,
+  never alarms. An unmet claim never reads as "nothing to do", and the client
+  never edits the `.tbl` for a claim: Loobric is a witness, not an interlock.
+
+## Design constraints (why this is one file)
+
+LinuxCNC control boxes are often image-built on old distributions. This client:
+
+- is a **single file** — copy it anywhere, no install step required
+- has **no third-party dependencies** — Python 3 standard library only, so there
+  are never any pip-resolved packages to install, on any Python 3.6+ (CI tests
+  back to Python 3.6)
+- **never blocks the machine** — an unreachable server logs one line and exits 0,
+  so a cron job can fire forever without consequences
+- **never runs a server on the control box** — the Loobric server belongs on a
+  NAS/LAN box; this script is just a small messenger
+
+Because there are no dependencies, the same file is **pip-installable on a modern
+box** (giving you a `loobric-linuxcnc` command on your PATH) *and* **copy-and-run
+on an old one** — you never have to choose.
+
+## Quick start
+
+### 1. Get it onto the control box
+
+Either install it (modern box, gives you a `loobric-linuxcnc` command):
+
+```bash
+pip install loobric-linuxcnc
+```
+
+…or just grab the single file (old box, no pip):
+
+```bash
+wget https://raw.githubusercontent.com/loobric/loobric-linuxcnc/master/loobric_linuxcnc.py
+chmod +x loobric_linuxcnc.py
+```
+
+Every command below works either way — as `loobric-linuxcnc <cmd>` (installed) or
+`./loobric_linuxcnc.py <cmd>` (single file).
+
+### 2. Run the setup wizard
+
+```bash
+loobric-linuxcnc init
+```
+
+`init` walks you through it, prompting for:
+
+- **Server URL** — defaults to the hosted `https://api.loobric.com` **sandbox**
+  (a shared playground — keep nothing real there; point at your own NAS/LAN
+  server for production).
+- **API key** — leave it blank if you don't have one yet. Create an account and
+  key through the web UI or the Python client (`pip install loobric-cli`;
+  `loobric register` then `loobric create-key` — see
+  [loobric-cli/docs/SANDBOX.md](https://github.com/loobric/loobric-cli/blob/master/docs/SANDBOX.md)),
+  then paste it into the config later. Blank is also correct for a solo-mode server.
+- **Machine name** — defaults to this box's hostname.
+- **LinuxCNC config** — auto-discovered from `~/linuxcnc/configs/`. If you have
+  **several**, it asks which machine this is and writes the rest as commented
+  alternatives, so you can switch later by un/commenting a line.
+
+It writes `~/.config/loobric/linuxcnc.conf` (mode 600 — it holds your API key) and
+offers to run `doctor` right away. You can re-open the file any time to change a
+value; environment variables of the same name override it, as do `--url` and a
+positional machine name on the command line.
+
+Non-interactive (no terminal)? `init` takes every default without prompting. For
+a scripted install, name the INI explicitly: `loobric-linuxcnc init --ini PATH`.
+
+### 3. Check your setup
+
+```bash
+loobric-linuxcnc doctor
+```
+
+One command validates the config, finds and parses your tool table, and confirms
+the server is reachable and your key works — so setup problems surface here
+instead of in a cron log:
+
+```
+[ OK ] Config file - /home/user/.config/loobric/linuxcnc.conf
+[ OK ] Server URL - http://nas.local:8000
+[ OK ] Machine name - mill01
+[ OK ] Tool table - /home/user/linuxcnc/configs/mill/tool.tbl (5 tools)
+[ OK ] Server reachable - http://nas.local:8000 (server v0.2.0)
+[ OK ] Authentication - API key accepted
+```
+
+### 4. Sync
+
+```bash
+loobric-linuxcnc sync            # full cycle: push + pull (use this)
+loobric-linuxcnc push            # one-way, table -> server only
+```
+
+```
+[2026-06-09 12:00:00] Pushing 4 tools from /home/user/linuxcnc/configs/mill/tool.tbl as machine 'mill01'
+[2026-06-09 12:00:00] Registered machine 'mill01' on server
+[2026-06-09 12:00:01] Pushed 4 entries
+```
+
+The machine is created on the server on first contact.
+
+Once the table is pushed, a `sync` still tells you what the bench owes — an
+unmet claim from the machine's active setup is folded into the in-sync
+summary, not hidden behind "nothing to do":
+
+```
+[2026-06-09 12:05:00] 5 tools in sync, 1 tool requested: "1/4 downcut" (inst-7f3a91) - mount it and assign pocket 5
+[2026-06-09 12:41:00] Ready (bracket-job) - 6 tools in sync, 2 note(s)
+```
+
+### 5. Automate (cron)
+
+```bash
+crontab -e
+# every 5 minutes; safe even when the server is down
+*/5 * * * * loobric-linuxcnc sync >> /tmp/loobric-sync.log 2>&1
+# or, single-file install:
+# */5 * * * * /home/user/loobric_linuxcnc.py sync >> /tmp/loobric-sync.log 2>&1
+```
+
+## Tool table format
+
+Parses and regenerates the standard LinuxCNC format losslessly, including
+lathe parameters:
+
+```
+T<num> P<pocket> [D<dia>] [X Y Z U V W offsets] [A B C angles] [Q<orient>] [I<front> J<back>] ;comment
+```
+
+The raw line and every parsed parameter travel to the server in the entry's
+`clients.linuxcnc.data` field, so nothing your table says is ever lost in translation.
+
+## Exit codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Pushed — or server unreachable (benign, retry next sync) |
+| 2 | Usage or configuration error (missing settings, unreadable table) |
+
+## Development
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+Tests are stdlib-only too (`unittest`); CI runs them on Python 3.6 through 3.12.
+The `examples/` directory contains a LinuxCNC sim configuration for testing.
+
+## License
+
+MIT — see [LICENSE](LICENSE). Contributions welcome under DCO sign-off — see
+[CONTRIBUTING.md](CONTRIBUTING.md) (no CLA).

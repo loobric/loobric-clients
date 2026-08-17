@@ -1,0 +1,11 @@
+# Loobric Button HAL Configuration
+# This file defines the HAL components for the Loobric sync button and LED
+
+# Load required components
+loadrt toggle count=1
+
+# Connect the PyVCP button to the toggle
+#net button pyvcp.button => toggle.0.in
+
+# Connect the toggle to the PyVCP LED
+#net led toggle.0.out => pyvcp.led

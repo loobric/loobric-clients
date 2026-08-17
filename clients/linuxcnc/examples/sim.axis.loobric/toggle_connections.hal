@@ -1,0 +1,9 @@
+# Connect the PyVCP button to toggle the LED state (run after GUI loads)
+loadrt toggle
+addf toggle.0 servo-thread
+
+net button-to-toggle pyvcp.button => toggle.0.in
+net toggle-to-led toggle.0.out => pyvcp.led
+
+# Set initial state
+setp toggle.0.in 0

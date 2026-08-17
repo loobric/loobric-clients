@@ -1,0 +1,2 @@
+# Connect the PyVCP button to the LED (run after GUI loads)
+net button-to-led pyvcp.button => pyvcp.led

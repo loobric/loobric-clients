@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<pyvcp>
+  <button>
+    <halpin>button</halpin>
+    <text>"Loobric Sync"</text>
+  </button>
+  <led>
+    <halpin>led</halpin>
+    <on_color>green</on_color>
+    <off_color>red</off_color>
+  </led>
+</pyvcp>
