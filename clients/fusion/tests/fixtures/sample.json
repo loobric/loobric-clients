@@ -1,0 +1,425 @@
+{
+    "data": [
+        {
+            "BMC": "carbide",
+            "GRADE": "generic",
+            "description": "CoroMill® Plura solid carbide ball nose end mill for Profiling",
+            "geometry": {
+                "CSP": false,
+                "DC": 6,
+                "HAND": true,
+                "LB": 21,
+                "LCF": 9,
+                "NOF": 2,
+                "OAL": 57,
+                "SFDM": 6,
+                "assemblyGaugeLength": 21,
+                "shoulder-diameter": 6,
+                "shoulder-length": 21
+            },
+            "guid": "7794c794-ac7e-4d34-86d4-cf86523adcb9",
+            "last_modified": 1786974587602,
+            "post-process": {
+                "break-control": false,
+                "diameter-offset": 0,
+                "length-offset": 0,
+                "live": true,
+                "manual-tool-change": false,
+                "number": 0,
+                "turret": 0
+            },
+            "product-id": "R216.42-06030-AS09G 1700",
+            "product-link": "https://www.sandvik.coromant.com/en-gb/products/pages/productdetails.aspx?c=R216.42-06030-AS09G%201700&utm_medium=referral&utm_source=fusion360&utm_campaign=fusion360",
+            "reference_guid": "d4696ac7-cf20-4ad5-a6ed-d54f9582cf29",
+            "start-values": {
+                "presets": [
+                    {
+                        "f_n": 0,
+                        "f_z": 0,
+                        "guid": "{e1ccedf4-c3fa-404c-9b8c-9e530a9c5ca5}",
+                        "material": {
+                            "category": "all",
+                            "query": "",
+                            "use-hardness": false
+                        },
+                        "n": 0,
+                        "n_ramp": 0,
+                        "name": "Default Preset",
+                        "ramp-angle": 2,
+                        "tool-coolant": "flood",
+                        "use-stepdown": false,
+                        "use-stepover": false,
+                        "v_c": 0,
+                        "v_f": 0,
+                        "v_f_leadIn": 0,
+                        "v_f_leadOut": 0,
+                        "v_f_plunge": 0,
+                        "v_f_ramp": 0,
+                        "v_f_transition": 0
+                    }
+                ]
+            },
+            "type": "ball end mill",
+            "unit": "millimeters",
+            "vendor": "Sandvik Coromant"
+        },
+        {
+            "description": "probe",
+            "expressions": {
+                "tool_description": "'probe'"
+            },
+            "geometry": {
+                "DC": 5,
+                "LB": 20,
+                "SFDM": 4,
+                "assemblyGaugeLength": 20
+            },
+            "guid": "6dedbc1b-2e88-4318-9c74-7d7b2bdc6f93",
+            "last_modified": 1786974610774,
+            "post-process": {
+                "break-control": false,
+                "comment": "",
+                "diameter-offset": 1,
+                "length-offset": 1,
+                "live": true,
+                "manual-tool-change": false,
+                "number": 1,
+                "turret": 0
+            },
+            "product-id": "",
+            "product-link": "",
+            "reference_guid": "<NEW TOOL GUID>",
+            "start-values": {
+                "presets": [
+                    {
+                        "guid": "1f75d679-ecda-48b3-9f40-b83dea5d5c41",
+                        "name": "Default preset",
+                        "v_f_leadIn": 1000,
+                        "v_f_link": 3000,
+                        "v_f_measure": 102
+                    }
+                ]
+            },
+            "type": "probe",
+            "unit": "millimeters",
+            "vendor": ""
+        },
+        {
+            "BMC": "hss",
+            "description": "mysterybit",
+            "expressions": {
+                "tool_description": "'mysterybit'",
+                "tool_diameter": "5 mm",
+                "tool_numberOfFlutes": "4",
+                "tool_shaftDiameter": "5 mm"
+            },
+            "geometry": {
+                "CSP": false,
+                "DC": 5,
+                "HAND": true,
+                "LB": 24,
+                "LCF": 18,
+                "NOF": 4,
+                "OAL": 36,
+                "SFDM": 5,
+                "assemblyGaugeLength": 24,
+                "shoulder-diameter": 5,
+                "shoulder-length": 21
+            },
+            "guid": "f93aeaa8-a649-4abb-a1ce-d23f998e4dee",
+            "last_modified": 1786974685454,
+            "post-process": {
+                "break-control": false,
+                "comment": "",
+                "diameter-offset": 2,
+                "length-offset": 2,
+                "live": true,
+                "manual-tool-change": false,
+                "number": 2,
+                "turret": 0
+            },
+            "product-id": "",
+            "product-link": "",
+            "reference_guid": "<NEW TOOL GUID>",
+            "start-values": {
+                "presets": [
+                    {
+                        "f_n": 0.06666666666666667,
+                        "f_z": 0.05,
+                        "guid": "979f1ecb-31d5-4475-b27b-6b95f7fe2484",
+                        "material": {
+                            "category": "all",
+                            "query": "",
+                            "use-hardness": false
+                        },
+                        "n": 5000,
+                        "n_ramp": 5000,
+                        "name": "Default preset",
+                        "ramp-angle": 2,
+                        "tool-coolant": "flood",
+                        "use-stepdown": false,
+                        "use-stepover": false,
+                        "v_c": 78.5398163397448,
+                        "v_f": 1000,
+                        "v_f_leadIn": 1000,
+                        "v_f_leadOut": 1000,
+                        "v_f_plunge": 333.3333333333333,
+                        "v_f_ramp": 333.3333333333333,
+                        "v_f_transition": 1000
+                    }
+                ]
+            },
+            "type": "ball end mill",
+            "unit": "millimeters",
+            "vendor": ""
+        },
+        {
+            "BMC": "hss",
+            "GRADE": "Mill Generic",
+            "description": "4 Flute HSS Uncoated Center-Cutting ",
+            "geometry": {
+                "CSP": true,
+                "DC": 0.375,
+                "HAND": true,
+                "LB": 0.8,
+                "LCF": 0.75,
+                "NOF": 4,
+                "NT": 1,
+                "OAL": 2.5,
+                "RE": 0,
+                "SFDM": 0.375,
+                "TA": 0,
+                "TP": 0,
+                "assemblyGaugeLength": 2.5972442,
+                "shoulder-diameter": 0.375,
+                "shoulder-length": 0.75,
+                "thread-profile-angle": 60,
+                "tip-diameter": 0.375,
+                "tip-length": 0,
+                "tip-offset": 0
+            },
+            "guid": "4b6db888-f10b-4119-a94a-00c86b103f1d",
+            "holder": {
+                "description": "\"TTS-3/8\"\" Set Screw Holder\"",
+                "gaugeLength": 1.7972442,
+                "guid": "05fdd17a-24a3-4255-bb8e-b3120616ac09",
+                "product-id": "31820",
+                "product-link": "",
+                "segments": [
+                    {
+                        "height": 0.422047,
+                        "lower-diameter": 0.866142,
+                        "upper-diameter": 1.25984
+                    },
+                    {
+                        "height": 0.748031,
+                        "lower-diameter": 1.25984,
+                        "upper-diameter": 1.25984
+                    },
+                    {
+                        "height": 0.26378,
+                        "lower-diameter": 1.5,
+                        "upper-diameter": 1.5
+                    },
+                    {
+                        "height": 0.0944882,
+                        "lower-diameter": 1.16142,
+                        "upper-diameter": 1.16142
+                    },
+                    {
+                        "height": 0.268898,
+                        "lower-diameter": 1.5,
+                        "upper-diameter": 1.5
+                    }
+                ],
+                "type": "holder",
+                "unit": "inches",
+                "vendor": "Tormach"
+            },
+            "last_modified": 1786974735854,
+            "post-process": {
+                "break-control": false,
+                "comment": "",
+                "diameter-offset": 3,
+                "length-offset": 3,
+                "live": true,
+                "manual-tool-change": false,
+                "number": 3,
+                "turret": 0
+            },
+            "product-id": "33447",
+            "product-link": "https://www.tormach.com/part/33447",
+            "reference_guid": "cc2ed8b0-d313-4799-a906-3c0d6c30996a",
+            "start-values": {
+                "presets": [
+                    {
+                        "description": "",
+                        "f_n": 0.001,
+                        "f_z": 0.0025,
+                        "guid": "1cf15460-44d4-da3d-984c-e3b6311d3aa6",
+                        "material": {
+                            "category": "all",
+                            "query": "",
+                            "use-hardness": false
+                        },
+                        "n": 1018.59,
+                        "n_ramp": 1018.59,
+                        "name": "Default Preset",
+                        "ramp-angle": 2,
+                        "tool-coolant": "flood",
+                        "use-stepdown": false,
+                        "use-stepover": false,
+                        "v_c": 99.9998394068759,
+                        "v_f": 10.1859,
+                        "v_f_leadIn": 10.1859,
+                        "v_f_leadOut": 10.1859,
+                        "v_f_plunge": 1.01859,
+                        "v_f_ramp": 1.01859,
+                        "v_f_retract": 1.01859,
+                        "v_f_transition": 10.1859
+                    }
+                ]
+            },
+            "type": "flat end mill",
+            "unit": "inches",
+            "vendor": "Tormach"
+        },
+        {
+            "BMC": "unspecified",
+            "GRADE": "generic",
+            "description": "#20 DRILL 2FL TA SER 101 #20x1-3/8x2-1/2",
+            "geometry": {
+                "CSP": false,
+                "DC": 0.161,
+                "HAND": true,
+                "LB": 2.5,
+                "LCF": 1.375,
+                "NOF": 2,
+                "NT": 0,
+                "OAL": 2.5,
+                "RE": 0,
+                "SFDM": 0.161,
+                "SIG": 118,
+                "TP": 0,
+                "assemblyGaugeLength": 2.5,
+                "shoulder-diameter": 0.161,
+                "shoulder-length": 1.375,
+                "tip-diameter": 0,
+                "tip-length": 0,
+                "tip-offset": 0
+            },
+            "guid": "d2834bfd-166f-4f8d-8eab-b13cf3be9976",
+            "last_modified": 1786974771371,
+            "post-process": {
+                "break-control": false,
+                "comment": "",
+                "diameter-offset": 0,
+                "length-offset": 0,
+                "live": true,
+                "manual-tool-change": false,
+                "number": 0,
+                "turret": 0
+            },
+            "product-id": "57146",
+            "product-link": "https://kyocera-sgstool.co.uk/",
+            "reference_guid": "b087312f-58a4-4b1a-af44-d750f41dae52",
+            "start-values": {
+                "presets": [
+                    {
+                        "description": "",
+                        "f_n": 0,
+                        "f_z": 0,
+                        "guid": "a9aabac7-93df-4cbc-998e-15bdb1432064",
+                        "material": {
+                            "category": "all",
+                            "query": "",
+                            "use-hardness": false
+                        },
+                        "n": 0,
+                        "n_ramp": 0,
+                        "name": "Default Preset",
+                        "tool-coolant": "flood",
+                        "use-feed-per-revolution": false,
+                        "v_c": 0,
+                        "v_f": 0,
+                        "v_f_leadIn": 0,
+                        "v_f_leadOut": 0,
+                        "v_f_plunge": 0,
+                        "v_f_ramp": 0,
+                        "v_f_retract": 0,
+                        "v_f_transition": 0
+                    }
+                ]
+            },
+            "type": "drill",
+            "unit": "inches",
+            "vendor": "KYOCERA SGS Precision Tools"
+        },
+        {
+            "BMC": "carbide",
+            "description": ".375 X .375 X .750 LOC X 2.50 OAL R.090 5FL Endmill A-ProMAX COATED",
+            "geometry": {
+                "CSP": false,
+                "DC": 0.375,
+                "HAND": true,
+                "LB": 2.5,
+                "LCF": 0.75,
+                "NOF": 5,
+                "OAL": 2.5,
+                "RE": 0.09,
+                "SFDM": 0.375,
+                "assemblyGaugeLength": 2.5,
+                "shoulder-diameter": 0.375,
+                "shoulder-length": 0.75
+            },
+            "guid": "4defa212-3d25-4e85-b35a-9c847ce6b813",
+            "last_modified": 1786974809240,
+            "post-process": {
+                "break-control": false,
+                "comment": "",
+                "diameter-offset": 1,
+                "length-offset": 1,
+                "live": true,
+                "manual-tool-change": false,
+                "number": 0,
+                "turret": 0
+            },
+            "product-id": "50322",
+            "product-link": "https://www.nexgentooling.com/",
+            "reference_guid": "f7ce73d7-8274-4be0-9b28-dce9c202cb92",
+            "start-values": {
+                "presets": [
+                    {
+                        "f_n": 0,
+                        "f_z": 0,
+                        "guid": "7129faec-417e-4927-9f0a-27a36e7def26",
+                        "material": {
+                            "category": "all",
+                            "query": "",
+                            "use-hardness": false
+                        },
+                        "n": 0,
+                        "n_ramp": 0,
+                        "name": "Default preset",
+                        "presetGuid": "c596b407-3b92-4002-bfa4-ac4d2f26940b",
+                        "ramp-angle": 2,
+                        "tool-coolant": "flood",
+                        "use-stepdown": false,
+                        "use-stepover": false,
+                        "v_c": 0,
+                        "v_f": 0,
+                        "v_f_leadIn": 0,
+                        "v_f_leadOut": 0,
+                        "v_f_plunge": 0,
+                        "v_f_ramp": 0,
+                        "v_f_transition": 0
+                    }
+                ]
+            },
+            "type": "bull nose end mill",
+            "unit": "inches",
+            "vendor": "NexGen Tooling"
+        }
+    ],
+    "version": 36
+}
