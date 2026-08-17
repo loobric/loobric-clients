@@ -53,4 +53,4 @@ LinuxCNC instance.
 
 DCO sign-off, tests first, keep the file ancient-Python-compatible. Pull-path
 work (server → `.tbl`, the closed loop) is tracked in
-[loobric-linuxcnc#2](https://github.com/loobric/loobric-linuxcnc/issues/2).
+[loobric-linuxcnc#2](https://github.com/loobric/loobric-clients/tree/master/clients/linuxcnc/issues/2).
