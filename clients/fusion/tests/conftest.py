@@ -14,7 +14,13 @@ sys.path.insert(0, str(HERE.parent))
 try:
     import loobric  # noqa: F401
 except ImportError:
-    sys.path.insert(0, str(HERE.parent.parent / "loobric-cli"))
+    # Sibling checkout fallbacks: monorepo layout (clients/fusion under
+    # loobric-clients, loobric-cli next to it) first, then the old flat layout.
+    for candidate in (HERE.parents[3] / "loobric-cli",
+                      HERE.parents[1] / "loobric-cli"):
+        if candidate.is_dir():
+            sys.path.insert(0, str(candidate))
+            break
 
 FIXTURES = HERE / "fixtures"
 

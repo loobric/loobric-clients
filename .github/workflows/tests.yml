@@ -1,0 +1,43 @@
+name: client tests
+
+on:
+  push:
+    branches: [master]
+    paths: ['clients/**']
+  pull_request:
+    paths: ['clients/**']
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      clients: ${{ steps.filter.outputs.changes }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          # One filter per client folder; the job matrix below runs only the
+          # clients whose files changed. Add a line when adding a client.
+          filters: |
+            linuxcnc: ['clients/linuxcnc/**']
+            masso: ['clients/masso/**']
+            fusion: ['clients/fusion/**']
+
+  test:
+    needs: changes
+    if: ${{ needs.changes.outputs.clients != '[]' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        client: ${{ fromJSON(needs.changes.outputs.clients) }}
+        python: ['3.9', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install pytest ./clients/${{ matrix.client }}
+      - name: Test ${{ matrix.client }} (offline, stdlib-first)
+        run: python -m pytest clients/${{ matrix.client }}/tests/ -q
