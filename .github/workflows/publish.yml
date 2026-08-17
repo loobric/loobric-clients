@@ -1,0 +1,36 @@
+name: publish to PyPI
+
+# Per-client releases: pushing a tag like `masso-v0.1.0` builds and publishes
+# clients/masso to PyPI via trusted publishing (no tokens in the repo).
+#
+# One-time setup per client on pypi.org: add a "trusted publisher" for the
+# project (owner: loobric, repo: loobric-clients, workflow: publish.yml,
+# environment: pypi). Until that's done for a client, its publish job fails
+# at the upload step — harmless, re-run after registering.
+
+on:
+  push:
+    tags: ['*-v*']
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write   # trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve client folder from tag
+        id: client
+        run: |
+          TAG="${GITHUB_REF_NAME}"            # e.g. masso-v0.1.0
+          NAME="${TAG%-v*}"                    # -> masso
+          test -d "clients/$NAME" || { echo "no clients/$NAME for tag $TAG"; exit 1; }
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install build && python -m build clients/${{ steps.client.outputs.name }}
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: clients/${{ steps.client.outputs.name }}/dist
