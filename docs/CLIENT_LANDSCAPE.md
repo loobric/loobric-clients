@@ -87,7 +87,7 @@ Three format investments cover most of the reachable surface:
 
 | Client | Cat | Docs | Comm | Desire | Integration route |
 |---|---|---|---|---|---|
-| **Tormach PathPilot** | Control | Good (it *is* LinuxCNC `tool.tbl`) | Strong | **HIGH** | **Reuse the LinuxCNC client** — cheapest win. Handle reload-on-restart. |
+| **Tormach PathPilot** | Control | Good (it *is* LinuxCNC `tool.tbl`) | Strong | **HIGH** | Parser reuse from LinuxCNC client; **write path is NOT free** — PathPilot's authoritative tool state lives in local Redis (`dump.rdb`), external `tool.tbl` edits revert on restart, descriptions are Redis-only (2026-08-17 research, issue #9). Read/harvest works as-is. |
 | **Heidenhain TNC** | Control | Good (plaintext `TOOL.T`, incl. tool-life columns) | Moderate (industrial) | **HIGH** | File via free TNCremo/LSV2; no SDK or option needed |
 | **Haas NGC** | Control | Partial (`O999999` / Setting-157 offset file) | Strong (PM subforum, r/Haas) | **HIGH** | File over USB/Ethernet; no SDK |
 | **Okuma OSP** (THINC) | Control | Good (free, write-capable .NET SDK) | Strong (PM subforum) | **HIGH** | On-machine THINC app → Loobric over network. Verify full-table coverage in the SDK `.chm`. |
