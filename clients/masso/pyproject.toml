@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "loobric-masso"
+version = "0.1.0"
+description = "Loobric client for MASSO G3 controllers: sync the .htg tool table on the controller's USB stick with a Loobric server"
+readme = "README.md"
+requires-python = ">=3.6"
+license = {text = "MIT"}
+authors = [{name = "sliptonic"}]
+keywords = ["cnc", "masso", "tooling", "loobric"]
+
+[project.scripts]
+loobric-masso = "loobric_masso:main"
+
+[tool.setuptools]
+py-modules = ["loobric_masso"]
